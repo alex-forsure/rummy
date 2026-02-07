@@ -1,11 +1,12 @@
 import random
+from copy import copy
 
 SUITS = ["H", "C", "S", "D"]
 RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
 HAND_SIZES = {2:10, 3:7, 4:7, 5:6, 6:6}
 
 class Card():
-    def __init__(self, suit : str, rank : str):
+    def __init__(self, rank : str, suit : str):
         if suit not in SUITS:
             raise ValueError("Invalid suit given to card.")
         if rank not in RANKS:
@@ -16,12 +17,64 @@ class Card():
     def __repr__(self):
         return self.rank + self.suit
 
+
+
+
+
+def is_run(cds:list):
+
+    cards = copy(cds)
+    
+    # Find card of minimal rank.
+    min_card = cards[0]
+    for card in cards:
+        if RANKS.index(card.rank) < RANKS.index(min_card.rank):
+            min_card = card
+    
+    # Start off the run with the minimal card.
+    suit = min_card.suit
+    run = [min_card]
+    cards.remove(min_card)
+    c = RANKS.index(min_card.rank)
+    i = 1
+    # Iterate over next ranks until K is reached or a suit-matching card is not found.
+    while i < 13:
+        next_found = False
+        for card in cards:
+            if card.suit == suit and RANKS.index(card.rank) == c + i:
+                run.append(card)
+                cards.remove(card)
+                next_found = True
+                i += 1
+        if not next_found:
+            break
+    # If all cards were used in forming the run, the given set was a valid run. Otherwise it was not.
+    if cards == []:
+        return run
+    else:
+        return None     
+
+
+kh = Card("K", "H")
+kd = Card("K", "D")
+ks = Card("K", "S")
+qs = Card("Q", "S")
+js = Card("J", "S")
+jd = Card("J", "D")
+ts = Card("10", "S")
+eights = Card("8", "S")
+# print(is_run([js, qs, ks]))
+
+
+
+
+
 # Returns a full unshuffled deck
 def deck():
     out = []
     for suit in SUITS:
         for rank in RANKS:
-            out.append(Card(suit, rank))
+            out.append(Card(rank, suit))
     return out
 
 
@@ -135,7 +188,7 @@ player1 = Human("Player 1")
 player2 = Human("Player 2")
 my_table = Table([player1, player2])
 
-my_table.play()
+#my_table.play()
 
 
 # while playing

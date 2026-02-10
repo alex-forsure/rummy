@@ -5,6 +5,7 @@ SUITS = ["H", "C", "S", "D"]
 RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
 HAND_SIZES = {2:10, 3:7, 4:7, 5:6, 6:6}
 
+
 class Card():
     def __init__(self, rank : str, suit : str):
         if suit not in SUITS:
@@ -18,10 +19,7 @@ class Card():
         return self.rank + self.suit
 
 
-
-
-
-def is_run(cds:list):
+def run(cds:list):
 
     cards = copy(cds)
     
@@ -52,7 +50,70 @@ def is_run(cds:list):
     if cards == []:
         return run
     else:
-        return None     
+        return None
+
+
+def lot(cds: list):
+    rank = cds[0].rank
+    for card in cds:
+        if card.rank != rank:
+            return None
+    return cds
+
+
+class Meld():
+    def __init__(self):
+        pass
+
+
+class Lot(Meld):
+    def __init__(self, cards):
+        if lot(cards) == None:
+            raise ValueError("Attempted to create a Lot from an invalid set of cards.")
+        self.cards = cards
+        self.is_run = False
+        self.is_lot = True
+    
+    def set_next(self, pool:list):
+        out = []
+        for card in pool:
+            new = self.cards + [card]
+            if lot(new) != None:
+                out += [card]
+        self.next = out
+
+
+class Run(Meld):
+    def __init__(self, cards):
+        if run(cards) == None:
+            raise ValueError("Attempted to create a Run from an invalid set of cards.")
+        self.cards = run(cards)
+        self.is_run = True
+        self.is_lot = False
+        
+    def set_next(self, pool:list):
+        out = []
+        for card in pool:
+            new = self.cards + [card]
+            if run(new) != None:
+                out += [card]
+        self.next = out
+    
+        
+
+
+# Class Meld
+# Meld object stores:
+    # Cards in meld
+    # Is set/run
+    # Viable additions
+
+# Cards store scoring player
+
+# Playing melds
+    # table calls on player to play melds
+    # player returns a list of meld objects with setup complete
+
 
 
 kh = Card("K", "H")
@@ -63,7 +124,7 @@ js = Card("J", "S")
 jd = Card("J", "D")
 ts = Card("10", "S")
 eights = Card("8", "S")
-# print(is_run([js, qs, ks]))
+print(is_set([ks, kd, kh]))
 
 
 

@@ -1,8 +1,16 @@
+# TO DO (QOL):
+    # Turn dividers
+    # Show hand after drawing
+    # Auto-sort player's hand
+    # Colour code cards
+    # Allow QKA runs
+
 import random
 from copy import copy
 
+
 SUITS = ["H", "C", "S", "D"]
-RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
+RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K"]
 HAND_SIZES = {2:10, 3:7, 4:7, 5:6, 6:6}
 
 
@@ -14,13 +22,16 @@ class Card():
             raise ValueError("Invalid rank given to card.")
         self.suit = suit
         self.rank = rank
+        self.code = self.rank + self.suit
 
     def __repr__(self):
-        return self.rank + self.suit
+        return self.code
 
 
 def run(cds:list):
-
+    if len(cds) < 3:
+        return None
+    
     cards = copy(cds)
     
     # Find card of minimal rank.
@@ -54,6 +65,8 @@ def run(cds:list):
 
 
 def lot(cds: list):
+    if len(cds) < 3:
+        return None
     rank = cds[0].rank
     for card in cds:
         if card.rank != rank:
@@ -64,6 +77,15 @@ def lot(cds: list):
 class Meld():
     def __init__(self):
         pass
+
+    def __repr__(self):
+        out = "["
+        for card in self.cards:
+            out += str(card)
+            out += " "
+        out = out.removesuffix(" ")
+        out += "]"
+        return out
 
 
 class Lot(Meld):
@@ -122,11 +144,11 @@ ks = Card("K", "S")
 qs = Card("Q", "S")
 js = Card("J", "S")
 jd = Card("J", "D")
-ts = Card("10", "S")
+ts = Card("T", "S")
 eights = Card("8", "S")
-print(is_set([ks, kd, kh]))
 
-
+mylot = Lot([kh, kd, ks])
+print(mylot)
 
 
 
@@ -138,6 +160,7 @@ def deck():
             out.append(Card(rank, suit))
     return out
 
+mymeld = Lot([kh, kd, ks])
 
 class Table():
     def __init__(self, players : list, hand_size : int = 0):
@@ -149,6 +172,7 @@ class Table():
                 raise ValueError("Hand size must be specified for this number of players.")
         self.stock = []
         self.discard = []
+        self.melds = [mymeld, mymeld, mymeld, mymeld]
 
     # Shows all information of table, including stock and all players' hands
     def show_all(self):
@@ -162,6 +186,29 @@ class Table():
             print("\n" + p.name + "'s hand:")
             print(p.hand)
 
+    def show_table(self):
+        print("MELDS".center(90, ' '))
+        melds_text = []
+        for i, meld in enumerate(self.melds):
+            if i % 3 == 0:
+                melds_text += ['']
+            melds_text[i//3] += " " + str(meld) + " "
+        for meld_text in melds_text:
+            print(meld_text.center(90, " "))
+            
+        print("")
+        
+        print(("STOCK   [??]      DISCARD [" + str(self.discard[-1]) + "]").center(90, ' '))
+        print("")
+
+
+    def show_hand(self, player):
+        print((player.name + "'s Hand").center(90, " "))
+        hand_text = ""
+        for card in player.hand:
+            hand_text += str(card) + " "
+        hand_text = hand_text.removesuffix(" ")
+        print(hand_text.center(90, " "))
 
     def play(self):
         # Set up stock, players' hands, discard pile
@@ -174,24 +221,37 @@ class Table():
             p.hand = hand
         self.discard = [self.stock.pop()]
 
-        self.show_all()
-
         # Start game loop
         playing = True
         player_index = -1 # -1 so that player 0 starts
         while playing:
-            self.show_all() # At some point must change this so only suitable information is shown
 
+            # Go to next player
             player_index = (player_index + 1) % len(self.players)
             cur_player = self.players[player_index]
-            print("It is " + cur_player.name + "'s turn.")
+            
+            # Show state of the game
+            print((" "  + cur_player.name + "'s turn ").center(90, '-'))
+            print("")
+            self.show_table()
+            if cur_player.show_hand:
+                self.show_hand(cur_player)
+            print("")
 
             # First, player draws. Method player.draw() returns true if he wants to draw from the discard pile. Otherwise he draws from the stock.
             if cur_player.draw():
                 cur_player.hand.append(self.discard.pop())
             else:
                 cur_player.hand.append(self.stock.pop())
-
+                
+            if cur_player.show_hand:
+                self.show_hand(cur_player)
+                    
+            # Then, player forms melds.
+            self.melds += cur_player.meld()
+            
+            if cur_player.show_hand:
+                self.show_hand(cur_player)
             
             # Finally, player chooses a card to place on the discard pile.
             self.discard.append(cur_player.discard())
@@ -200,14 +260,25 @@ class Table():
       
 # Base class for CPU + human players
 class Player():
-    def __init__(self, name : str, hand : list = [], melds : list = []):
+    def __init__(self, name : str, hand : list = [], melds : list = [], show_hand = False):
         self.hand = hand
         self.melds = melds
         self.name = name
+        self.show_hand = show_hand
     
     # Should probably put in errors for these functions? This is just a base class so these methods should never be called.
     def draw(self):
         print("Drawing")
+        
+    def sort_hand(self):
+        new_hand = []
+        for suit in SUITS:
+            for rank in RANKS:
+                for card in self.hand:
+                    if card.code == rank + suit:
+                        new_hand.append(card)
+        self.hand = new_hand
+                    
     
     def discard(self):
         print("Discarding")
@@ -217,6 +288,7 @@ class Player():
 class Human(Player):
     def __init__(self, name : str, hand : list = [], melds : list = []):
         super().__init__(name, hand, melds)
+        self.show_hand = True
 
     # Choose to draw from either stock or discard. True = discard, False = stock.
     def draw(self):
@@ -231,7 +303,6 @@ class Human(Player):
     # Select a card from hand. Remove it from hand. Return it, so that table can add it to discard.
     def discard(self):
         print("Name a card to discard from your hand.")
-        print("Hand: " + str(self.hand))
         ui = input()
         while True:
             rank = ui[0].upper()
@@ -241,7 +312,54 @@ class Human(Player):
                     self.hand.remove(card)
                     return card
             ui = input("Couldn't find that card. Try again. \n")
-
+    
+    def meld(self):
+        melds = []
+        ui = " "
+        while ui != '':
+            ui = input("Enter cards from your hand to form a meld, e.g. 'KH KC KS'. Or, enter '' to end.")
+            
+            # Check that ui codes >2 cards
+            ui_valid = True
+            codes = ui.split(" ")
+            for code in codes:
+                if len(code) != 2 or code[0] not in RANKS or code[1] not in SUITS or len(codes) < 3:
+                    ui_valid = False
+                    break
+            if not ui_valid:
+                print("Invalid input.")
+                continue
+            
+            # Check that cards exist in player hand, translate from codes to cards.
+            cards = []
+            for code in codes:
+                card_found = False
+                for card in self.hand:
+                    if card.code == code:
+                        card_found = True
+                        cards.append(card)
+                        break
+                if not card_found:
+                    ui_valid = False
+            if not ui_valid:
+                print("Entered a card not found in hand.")
+                continue
+            
+            if lot(cards):
+                melds.append(Lot(cards))
+                print("Lot added.")
+                for card in cards:
+                    self.hand.remove(card)
+            elif run(cards):
+                melds.append(Run(cards))
+                print("Run added.")
+                for card in cards:
+                    self.hand.remove(card)
+            else:
+                print("Set did not form run or lot so was ignored.")
+        
+        return melds
+            
 
 
 
@@ -249,7 +367,7 @@ player1 = Human("Player 1")
 player2 = Human("Player 2")
 my_table = Table([player1, player2])
 
-#my_table.play()
+my_table.play()
 
 
 # while playing

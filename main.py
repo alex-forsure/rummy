@@ -160,7 +160,6 @@ def deck():
             out.append(Card(rank, suit))
     return out
 
-mymeld = Lot([kh, kd, ks])
 
 class Table():
     def __init__(self, players : list, hand_size : int = 0):
@@ -172,7 +171,7 @@ class Table():
                 raise ValueError("Hand size must be specified for this number of players.")
         self.stock = []
         self.discard = []
-        self.melds = [mymeld, mymeld, mymeld, mymeld]
+        self.melds = []
 
     # Shows all information of table, including stock and all players' hands
     def show_all(self):
@@ -229,7 +228,8 @@ class Table():
             # Go to next player
             player_index = (player_index + 1) % len(self.players)
             cur_player = self.players[player_index]
-            
+            cur_player.sort_hand()
+
             # Show state of the game
             print((" "  + cur_player.name + "'s turn ").center(90, '-'))
             print("")
@@ -237,6 +237,7 @@ class Table():
             if cur_player.show_hand:
                 self.show_hand(cur_player)
             print("")
+
 
             # First, player draws. Method player.draw() returns true if he wants to draw from the discard pile. Otherwise he draws from the stock.
             if cur_player.draw():
@@ -292,18 +293,17 @@ class Human(Player):
 
     # Choose to draw from either stock or discard. True = discard, False = stock.
     def draw(self):
-        ui = input("Draw from discard or stock?")
+        ui = input("Draw from discard or stock?\n > ")
         while ui.lower() not in ["d", "s", "discard", "stock"]:
             print("Invalid input.")
-            ui = input("Draw from discard or stock?")
+            ui = input("Draw from discard or stock?\n > ")
         if ui.lower() in ["discard", "d"]:
             return True
         return False
 
     # Select a card from hand. Remove it from hand. Return it, so that table can add it to discard.
     def discard(self):
-        print("Name a card to discard from your hand.")
-        ui = input()
+        ui = input("Which card will you discard? \n > ")
         while True:
             rank = ui[0].upper()
             suit = ui[1].upper()
@@ -311,13 +311,13 @@ class Human(Player):
                 if card.suit == suit and card.rank == rank:
                     self.hand.remove(card)
                     return card
-            ui = input("Couldn't find that card. Try again. \n")
+            ui = input("Couldn't find that card. Try again. \n > ")
     
     def meld(self):
         melds = []
         ui = " "
         while ui != '':
-            ui = input("Enter cards from your hand to form a meld, e.g. 'KH KC KS'. Or, enter '' to end.")
+            ui = input("Enter cards from your hand to form a meld, e.g. 'KH KC KS'. Or, enter '' to end.\n > ")
             
             # Check that ui codes >2 cards
             ui_valid = True
@@ -326,6 +326,8 @@ class Human(Player):
                 if len(code) != 2 or code[0] not in RANKS or code[1] not in SUITS or len(codes) < 3:
                     ui_valid = False
                     break
+            if ui == "":
+                continue
             if not ui_valid:
                 print("Invalid input.")
                 continue

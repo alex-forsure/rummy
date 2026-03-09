@@ -1,12 +1,5 @@
 # TO DO (QOL):
-    # Turn dividers
-    # Show hand after drawing
     # Auto-sort player's hand
-    # Colour code cards
-    # Allow QKA runs
-
-
-# Test commit change
 
 import random
 from copy import copy
@@ -204,15 +197,12 @@ class Table():
         print("")
 
 
-    def show_hand(self, player):
-        print((player.name + "'s Hand").center(90, " "))
-        hand_text = ""
-        for card in player.hand:
-            hand_text += str(card) + " "
-        hand_text = hand_text.removesuffix(" ")
-        print(hand_text.center(90, " "))
+    
+
 
     def play(self):
+
+
         # Set up stock, players' hands, discard pile
         self.stock = deck()
         random.shuffle(self.stock)
@@ -223,6 +213,8 @@ class Table():
             p.hand = hand
         self.discard = [self.stock.pop()]
 
+        self.players[0].hand = [Card("Q", "H"), Card("J", "H"), Card("T", "H"), Card("8", "H"), Card("7", "C"), Card("6", "C")]
+        self.players[1].hand = [Card("9", "H"), Card("K", "H"), Card("4", "C")]
         # Start game loop
         playing = True
         player_index = -1 # -1 so that player 0 starts
@@ -237,8 +229,6 @@ class Table():
             print((" "  + cur_player.name + "'s turn ").center(90, '-'))
             print("")
             self.show_table()
-            if cur_player.show_hand:
-                self.show_hand(cur_player)
             print("")
 
 
@@ -248,14 +238,13 @@ class Table():
             else:
                 cur_player.hand.append(self.stock.pop())
                 
-            if cur_player.show_hand:
-                self.show_hand(cur_player)
                     
             # Then, player forms melds.
             self.melds += cur_player.meld()
+
+            # Next lay off.
+            cur_player.lay_off(self.melds)
             
-            if cur_player.show_hand:
-                self.show_hand(cur_player)
             
             # Finally, player chooses a card to place on the discard pile.
             self.discard.append(cur_player.discard())
@@ -264,12 +253,21 @@ class Table():
       
 # Base class for CPU + human players
 class Player():
-    def __init__(self, name : str, hand : list = [], melds : list = [], show_hand = False):
+    def __init__(self, name : str, hand : list = [], melds : list = []):
         self.hand = hand
         self.melds = melds
         self.name = name
-        self.show_hand = show_hand
     
+
+    def show_hand(self):
+        print((self.name + "'s Hand").center(90, " "))
+        hand_text = ""
+        for card in self.hand:
+            hand_text += str(card) + " "
+        hand_text = hand_text.removesuffix(" ")
+        print(hand_text.center(90, " "))
+
+
     # Should probably put in errors for these functions? This is just a base class so these methods should never be called.
     def draw(self):
         print("Drawing")
@@ -283,6 +281,8 @@ class Player():
                         new_hand.append(card)
         self.hand = new_hand
                     
+    def lay_off(self, melds):
+        pass
     
     def discard(self):
         print("Discarding")
@@ -292,10 +292,10 @@ class Player():
 class Human(Player):
     def __init__(self, name : str, hand : list = [], melds : list = []):
         super().__init__(name, hand, melds)
-        self.show_hand = True
 
     # Choose to draw from either stock or discard. True = discard, False = stock.
     def draw(self):
+        self.show_hand()
         ui = input("Draw from discard or stock?\n > ")
         while ui.lower() not in ["d", "s", "discard", "stock"]:
             print("Invalid input.")
@@ -304,22 +304,12 @@ class Human(Player):
             return True
         return False
 
-    # Select a card from hand. Remove it from hand. Return it, so that table can add it to discard.
-    def discard(self):
-        ui = input("Which card will you discard? \n > ")
-        while True:
-            rank = ui[0].upper()
-            suit = ui[1].upper()
-            for card in self.hand:
-                if card.suit == suit and card.rank == rank:
-                    self.hand.remove(card)
-                    return card
-            ui = input("Couldn't find that card. Try again. \n > ")
     
     def meld(self):
         melds = []
         ui = " "
         while ui != '':
+            self.show_hand()
             ui = input("Enter cards from your hand to form a meld, e.g. 'KH KC KS'. Or, enter '' to end.\n > ")
             
             # Check that ui codes >2 cards
@@ -366,6 +356,52 @@ class Human(Player):
         return melds
             
 
+    def lay_off(self, melds):
+        ui = ' '
+        card = None
+        self.show_hand()
+        ui = input("Enter a card to lay off. \n > ")
+
+        while ui != '':
+            while True:
+                for c in self.hand:
+                    if c.code == ui.upper():
+                        card = c
+                if card == None:
+                    ui = input("Card not found in hand.\n > ")
+                else:
+                    break
+        
+            valid_melds = []
+            for meld in melds:
+                cards = meld.cards + [card]
+                if run(cards) or lot(cards):
+                    valid_melds += [meld]
+        
+            print(valid_melds)
+            ui = input("Which meld will you lay off on?\n > ")
+            while ui not in [str(i) for i in range(len(valid_melds))]:
+                ui = input("Which meld will you lay off on?\n > ")
+            valid_melds[int(ui)].cards += [card]
+            self.hand.remove(card)
+
+            card = None
+            self.show_hand()
+            ui = input("Enter a card to lay off. \n > ")
+
+
+    # Select a card from hand. Remove it from hand. Return it, so that table can add it to discard.
+    def discard(self):
+        self.show_hand()
+        ui = input("Which card will you discard? \n > ")
+        while True:
+            rank = ui[0].upper()
+            suit = ui[1].upper()
+            for card in self.hand:
+                if card.suit == suit and card.rank == rank:
+                    self.hand.remove(card)
+                    return card
+            ui = input("Couldn't find that card. Try again. \n > ")
 
 
 player1 = Human("Player 1")

@@ -11,7 +11,6 @@ from copy import copy
 
 SUITS = ["H", "C", "S", "D"]
 RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K"]
-VALUE = {"A" : 11, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "T": 10, "J": 10, "Q": 10, "K": 10}
 HAND_SIZES = {2:10, 3:7, 4:7, 5:6, 6:6}
 
 
@@ -148,6 +147,10 @@ jd = Card("J", "D")
 ts = Card("T", "S")
 eights = Card("8", "S")
 
+mylot = Lot([kh, kd, ks])
+print(mylot)
+
+
 
 # Returns a full unshuffled deck
 def deck():
@@ -191,12 +194,23 @@ class Table():
             melds_text[i//3] += " " + str(meld) + " "
         for meld_text in melds_text:
             print(meld_text.center(90, " "))
+            
+        print("")
+        
+        print(("STOCK   [??]      DISCARD [" + str(self.discard[-1]) + "]").center(90, ' '))
+        print("")
 
 
-    
+    def show_hand(self, player):
+        print((player.name + "'s Hand").center(90, " "))
+        hand_text = ""
+        for card in player.hand:
+            hand_text += str(card) + " "
+        hand_text = hand_text.removesuffix(" ")
+        print(hand_text.center(90, " "))
 
     def play(self):
-        # Shuffle a fresh deck for the stock
+        # Set up stock, players' hands, discard pile
         self.stock = deck()
         random.shuffle(self.stock)
         for p in self.players:
@@ -220,9 +234,8 @@ class Table():
             print((" "  + cur_player.name + "'s turn ").center(90, '-'))
             print("")
             self.show_table()
-            if cur_player.open_handed:
-                cur_player.sort_hand()
-                cur_player.show_hand()
+            if cur_player.show_hand:
+                self.show_hand(cur_player)
             print("")
 
 
@@ -230,78 +243,29 @@ class Table():
             if cur_player.draw():
                 cur_player.hand.append(self.discard.pop())
             else:
-                c = self.stock.pop()
-                if cur_player.open_handed:
-                    print("Drew " + str(c))
-                cur_player.hand.append(c)
+                cur_player.hand.append(self.stock.pop())
                 
-            if cur_player.open_handed:
-                cur_player.sort_hand()
-                cur_player.show_hand()
+            if cur_player.show_hand:
+                self.show_hand(cur_player)
                     
             # Then, player forms melds.
-            new_melds = cur_player.meld()
-
-            # Set each card to score for current player
-            for meld in new_melds:
-                for card in meld.cards:
-                    card.scorer = cur_player
-
-            self.melds += new_melds
+            self.melds += cur_player.meld()
             
-            if cur_player.open_handed:
-                cur_player.sort_hand()
-                cur_player.show_hand()
+            if cur_player.show_hand:
+                self.show_hand(cur_player)
             
-            # Discard sequence
-            if cur_player.hand == []: # Go out if hand is empty before discarding
-                cur_player.out = True
-            else:
-                self.discard.append(cur_player.discard()) # Discard if hand is not empty
-            if cur_player.hand == []: # Also go out if hand is empty after discarding
-                cur_player.out = True
-    
-        print(" GAME END ".center(90, "-"))
-        print("")
-        self.show_melds()
-        print("")
-        # Score cards from melds
-        for meld in self.melds:
-            for card in meld.cards:
-                card.scorer.score += VALUE[card.rank]
-
-        # Negate score of cards in players' hands
-        for player in self.players:
-            for card in player.hand:
-                player.score -= VALUE[card.rank]
-
-        # Find the maximum score and the winner
-        max_score = self.players[0].score
-        winner = self.players[0]
-        for player in self.players:
-            if player.score > max_score:
-                max_score = player.score
-                winner = player
-        
-        print((winner.name + " WINS").center(90, ' '))
-        print("")
-        for player in self.players:
-            print(player.name + ": " + str(player.score))
-
-        
-
+            # Finally, player chooses a card to place on the discard pile.
+            self.discard.append(cur_player.discard())
 
 
       
 # Base class for CPU + human players
 class Player():
-    def __init__(self, name : str, hand : list = [], melds : list = [], open_handed = False):
-        self.out = False
+    def __init__(self, name : str, hand : list = [], melds : list = [], show_hand = False):
         self.hand = hand
         self.melds = melds
         self.name = name
-        self.open_handed = open_handed
-        self.score = 0
+        self.show_hand = show_hand
     
     # Should probably put in errors for these functions? This is just a base class so these methods should never be called.
     def draw(self):
@@ -315,16 +279,7 @@ class Player():
                     if card.code == rank + suit:
                         new_hand.append(card)
         self.hand = new_hand
-    
-    
-    def show_hand(self):
-        print((self.name + "'s Hand").center(90, " "))
-        hand_text = ""
-        for card in self.hand:
-            hand_text += str(card) + " "
-        hand_text = hand_text.removesuffix(" ")
-        print(hand_text.center(90, " "))
-    
+                    
     
     def discard(self):
         print("Discarding")
@@ -334,7 +289,7 @@ class Player():
 class Human(Player):
     def __init__(self, name : str, hand : list = [], melds : list = []):
         super().__init__(name, hand, melds)
-        self.open_handed = True
+        self.show_hand = True
 
     # Choose to draw from either stock or discard. True = discard, False = stock.
     def draw(self):
@@ -362,7 +317,7 @@ class Human(Player):
         melds = []
         ui = " "
         while ui != '':
-            ui = input("Enter cards from your hand to form a meld, e.g. 'KH KC KS'. Or, enter '' to end.\n > ").upper()
+            ui = input("Enter cards from your hand to form a meld, e.g. 'KH KC KS'. Or, enter '' to end.\n > ")
             
             # Check that ui codes >2 cards
             ui_valid = True

@@ -8,7 +8,6 @@
 import random
 from copy import copy
 
-print("Hello world!")
 
 SUITS = ["H", "C", "S", "D"]
 RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K"]
@@ -25,7 +24,6 @@ class Card():
         self.suit = suit
         self.rank = rank
         self.code = self.rank + self.suit
-        self.scorer = None
 
     def __repr__(self):
         return self.code
@@ -185,15 +183,6 @@ class Table():
             print(p.hand)
 
     def show_table(self):
-        self.show_melds()
-            
-        print("")
-        
-        print(("STOCK   [??]      DISCARD [" + str(self.discard[-1]) + "]").center(90, ' '))
-        print("")
-
-
-    def show_melds(self):
         print("MELDS".center(90, ' '))
         melds_text = []
         for i, meld in enumerate(self.melds):
@@ -210,30 +199,22 @@ class Table():
         # Shuffle a fresh deck for the stock
         self.stock = deck()
         random.shuffle(self.stock)
-
-        # Deal each player's hand from the stock
-        for p in self.players: 
+        for p in self.players:
             hand = []
             for i in range(self.hand_size):
                 hand.append(self.stock.pop())
             p.hand = hand
-        
-
-        # Start the discard pile with one card from the stock
         self.discard = [self.stock.pop()]
 
         # Start game loop
+        playing = True
         player_index = -1 # -1 so that player 0 starts
-        while True:
+        while playing:
 
             # Go to next player
             player_index = (player_index + 1) % len(self.players)
             cur_player = self.players[player_index]
             cur_player.sort_hand()
-
-            if cur_player.out:
-                break
-
 
             # Show state of the game
             print((" "  + cur_player.name + "'s turn ").center(90, '-'))
@@ -247,10 +228,7 @@ class Table():
 
             # First, player draws. Method player.draw() returns true if he wants to draw from the discard pile. Otherwise he draws from the stock.
             if cur_player.draw():
-                c = self.discard.pop()
-                if cur_player.open_handed:
-                    print("Drew " + str(c))
-                cur_player.hand.append(c)
+                cur_player.hand.append(self.discard.pop())
             else:
                 c = self.stock.pop()
                 if cur_player.open_handed:
@@ -419,14 +397,11 @@ class Human(Player):
                 print("Lot added.")
                 for card in cards:
                     self.hand.remove(card)
-                self.show_hand()
-                
             elif run(cards):
                 melds.append(Run(cards))
                 print("Run added.")
                 for card in cards:
                     self.hand.remove(card)
-                self.show_hand()
             else:
                 print("Set did not form run or lot so was ignored.")
         

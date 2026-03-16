@@ -1,9 +1,11 @@
 import random
 from copy import copy
 
+print("Hello world!")
 
 SUITS = ["H", "C", "S", "D"]
-RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A"]
+RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K"]
+VALUE = {"A" : 11, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "T": 10, "J": 10, "Q": 10, "K": 10}
 HAND_SIZES = {2:10, 3:7, 4:7, 5:6, 6:6}
 
 
@@ -16,6 +18,7 @@ class Card():
         self.suit = suit
         self.rank = rank
         self.code = self.rank + self.suit
+        self.scorer = None
 
     def __repr__(self):
         return self.code
@@ -162,6 +165,15 @@ class Table():
             print(p.hand)
 
     def show_table(self):
+        self.show_melds()
+            
+        print("")
+        
+        print(("STOCK   [??]      DISCARD [" + str(self.discard[-1]) + "]").center(90, ' '))
+        print("")
+
+
+    def show_melds(self):
         print("MELDS".center(90, ' '))
         melds_text = []
         for i, meld in enumerate(self.melds):
@@ -170,11 +182,6 @@ class Table():
             melds_text[i//3] += " " + str(meld) + " "
         for meld_text in melds_text:
             print(meld_text.center(90, " "))
-            
-        print("")
-        
-        print(("STOCK   [??]      DISCARD [" + str(self.discard[-1]) + "]").center(90, ' '))
-        print("")
 
 
     def play(self):
@@ -182,22 +189,30 @@ class Table():
         # Set up stock, players' hands, discard pile
         self.stock = deck()
         random.shuffle(self.stock)
-        for p in self.players:
+
+        # Deal each player's hand from the stock
+        for p in self.players: 
             hand = []
             for i in range(self.hand_size):
                 hand.append(self.stock.pop())
             p.hand = hand
+        
+
+        # Start the discard pile with one card from the stock
         self.discard = [self.stock.pop()]
 
         # Start game loop
-        playing = True
         player_index = -1 # -1 so that player 0 starts
-        while playing:
+        while True:
 
             # Go to next player
             player_index = (player_index + 1) % len(self.players)
             cur_player = self.players[player_index]
             cur_player.sort_hand()
+
+            if cur_player.out:
+                break
+
 
             # Show state of the game
             print((" "  + cur_player.name + "'s turn ").center(90, '-'))
@@ -209,27 +224,77 @@ class Table():
             self.show_all()
             # First, player draws. Method player.draw() returns true if he wants to draw from the discard pile. Otherwise he draws from the stock.
             if cur_player.draw():
-                cur_player.hand.append(self.discard.pop())
+                c = self.discard.pop()
+                if cur_player.open_handed:
+                    print("Drew " + str(c))
+                cur_player.hand.append(c)
             else:
-                cur_player.hand.append(self.stock.pop())
+                c = self.stock.pop()
+                if cur_player.open_handed:
+                    print("Drew " + str(c))
+                cur_player.hand.append(c)
                 
             # Then, player forms melds.
-            self.melds += cur_player.meld()
+            new_melds = cur_player.meld()
+
+            # Set each card to score for current player
+            for meld in new_melds:
+                for card in meld.cards:
+                    card.scorer = cur_player
+
+            self.melds += new_melds
 
             # Next lay off.
             cur_player.lay_off(self.melds)
             
-            # Finally, player chooses a card to place on the discard pile.
-            self.discard.append(cur_player.discard())
+            # Discard sequence
+            if cur_player.hand == []: # Go out if hand is empty before discarding
+                cur_player.out = True
+            else:
+                self.discard.append(cur_player.discard()) # Discard if hand is not empty
+            if cur_player.hand == []: # Also go out if hand is empty after discarding
+                cur_player.out = True
+    
+        print(" GAME END ".center(90, "-"))
+        print("")
+        self.show_melds()
+        print("")
+        # Score cards from melds
+        for meld in self.melds:
+            for card in meld.cards:
+                card.scorer.score += VALUE[card.rank]
+
+        # Negate score of cards in players' hands
+        for player in self.players:
+            for card in player.hand:
+                player.score -= VALUE[card.rank]
+
+        # Find the maximum score and the winner
+        max_score = self.players[0].score
+        winner = self.players[0]
+        for player in self.players:
+            if player.score > max_score:
+                max_score = player.score
+                winner = player
+        
+        print((winner.name + " WINS").center(90, ' '))
+        print("")
+        for player in self.players:
+            print(player.name + ": " + str(player.score))
+
+        
+
 
 
       
 # Base class for CPU + human players
 class Player():
-    def __init__(self, name : str, hand : list = []):
+    def __init__(self, name : str, hand : list = [], melds : list = [], open_handed = False):
+        self.out = False
         self.hand = hand
         self.name = name
         self.table = None
+        self.score = 0
     
 
     def show_hand(self):
@@ -253,9 +318,20 @@ class Player():
                     if card.code == rank + suit:
                         new_hand.append(card)
         self.hand = new_hand
-                    
+
+        
     def lay_off(self, melds):
         pass
+    
+    
+    def show_hand(self):
+        print((self.name + "'s Hand").center(90, " "))
+        hand_text = ""
+        for card in self.hand:
+            hand_text += str(card) + " "
+        hand_text = hand_text.removesuffix(" ")
+        print(hand_text.center(90, " "))
+    
     
     def discard(self):
         print("Discarding")
@@ -443,11 +519,14 @@ class Human(Player):
                 print("Lot added.")
                 for card in cards:
                     self.hand.remove(card)
+                self.show_hand()
+                
             elif run(cards):
                 melds.append(Run(cards))
                 print("Run added.")
                 for card in cards:
                     self.hand.remove(card)
+                self.show_hand()
             else:
                 print("Set did not form run or lot so was ignored.")
         

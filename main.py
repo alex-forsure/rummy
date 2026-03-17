@@ -224,15 +224,9 @@ class Table():
             self.show_all()
             # First, player draws. Method player.draw() returns true if he wants to draw from the discard pile. Otherwise he draws from the stock.
             if cur_player.draw():
-                c = self.discard.pop()
-                if cur_player.open_handed:
-                    print("Drew " + str(c))
-                cur_player.hand.append(c)
+                cur_player.hand.append(self.discard.pop())
             else:
-                c = self.stock.pop()
-                if cur_player.open_handed:
-                    print("Drew " + str(c))
-                cur_player.hand.append(c)
+                cur_player.hand.append(self.stock.pop())
                 
             # Then, player forms melds.
             new_melds = cur_player.meld()
@@ -371,10 +365,41 @@ class Bot(Player):
     
 
     def meld(self):
-        return([])
+        melds = []
+        while True:
+            max_meld = []
+            for card in self.hand:
+                print("Considering " + card.code)
+                h = copy(self.hand)
+                h.remove(card)
+                cur_meld = meld_with(card, h)
+                if len(cur_meld) > len(max_meld):
+                    max_meld = cur_meld
+            if lot(max_meld):
+                max_meld = Lot(max_meld)
+            elif run(max_meld):
+                max_meld = Run(max_meld)
+            else:
+                break
+            melds.append(max_meld)
+            print("Found meld " + str(max_meld) + "\n")
+            for card in max_meld.cards:
+                self.hand.remove(card)
+
+        print(melds)
+        return(melds)
 
     def lay_off(self, melds):
-        pass
+        while True:
+            laid = False
+            for meld in melds:
+                for card in self.hand:
+                    if lot(meld.cards + [card]) or run(meld.cards + [card]):
+                        meld.cards += [card]
+                        self.hand.remove(card)
+            if not laid:
+                break
+        
     
     def discard(self):
         return(self.hand.pop())

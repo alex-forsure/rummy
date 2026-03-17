@@ -4,7 +4,7 @@ from copy import copy
 print("Hello world!")
 
 SUITS = ["H", "C", "S", "D"]
-RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K"]
+RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A"]
 VALUE = {"A" : 11, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "T": 10, "J": 10, "Q": 10, "K": 10}
 HAND_SIZES = {2:10, 3:7, 4:7, 5:6, 6:6}
 
@@ -58,7 +58,7 @@ def run(cds:list):
 
     # Allow for A23 runs.
     if min_card.rank == "2":
-        if cards[0].code == "A" + suit:
+        if cards != [] and cards[0].code == "A" + suit:
             run.insert(0, cards.pop(0))
 
     # If all cards were used in forming the run, the given set was a valid run. Otherwise it was not.
@@ -164,6 +164,7 @@ class Table():
             print("\n" + p.name + "'s hand:")
             print(p.hand)
 
+
     def show_table(self):
         self.show_melds()
             
@@ -184,6 +185,24 @@ class Table():
             print(meld_text.center(90, " "))
 
 
+    def new_turn_output(self, cur_player):
+        print((" "  + cur_player.name + "'s turn ").center(90, '-'))
+        print("")
+        self.show_table()
+        print("")
+
+    def game_end_output(self):
+        print(" GAME END ".center(90, "-"))
+        print("")
+        self.show_melds()
+        print("")
+
+    def final_score_output(self, winner):
+        print((winner.name + " WINS").center(90, ' '))
+        print("")
+        for player in self.players:
+            print(player.name + ": " + str(player.score))
+
     def play(self):
 
         # Set up stock, players' hands, discard pile
@@ -194,8 +213,13 @@ class Table():
         for p in self.players: 
             hand = []
             for i in range(self.hand_size):
-                hand.append(self.stock.pop())
+                deal = self.stock.pop()
+                deal.scorer = p
+                hand.append(deal)
             p.hand = hand
+            p.score = 0
+            p.out = False
+            
         
 
         # Start the discard pile with one card from the stock
@@ -204,7 +228,11 @@ class Table():
         # Start game loop
         player_index = -1 # -1 so that player 0 starts
         while True:
+            self.show_all()
 
+            if self.stock == []:
+                break 
+            
             # Go to next player
             player_index = (player_index + 1) % len(self.players)
             cur_player = self.players[player_index]
@@ -215,28 +243,22 @@ class Table():
 
 
             # Show state of the game
-            print((" "  + cur_player.name + "'s turn ").center(90, '-'))
-            print("")
-            self.show_table()
-            print("")
+            self.new_turn_output(cur_player)
 
 
-            self.show_all()
+            # self.show_all()
             # First, player draws. Method player.draw() returns true if he wants to draw from the discard pile. Otherwise he draws from the stock.
             if cur_player.draw():
-                cur_player.hand.append(self.discard.pop())
+                deal = self.discard.pop()
             else:
-                cur_player.hand.append(self.stock.pop())
+                deal = self.stock.pop()
+
+
+            deal.scorer = cur_player
+            cur_player.hand += [deal]
                 
             # Then, player forms melds.
-            new_melds = cur_player.meld()
-
-            # Set each card to score for current player
-            for meld in new_melds:
-                for card in meld.cards:
-                    card.scorer = cur_player
-
-            self.melds += new_melds
+            self.melds += cur_player.meld()
 
             # Next lay off.
             cur_player.lay_off(self.melds)
@@ -249,10 +271,7 @@ class Table():
             if cur_player.hand == []: # Also go out if hand is empty after discarding
                 cur_player.out = True
     
-        print(" GAME END ".center(90, "-"))
-        print("")
-        self.show_melds()
-        print("")
+        self.game_end_output()
         # Score cards from melds
         for meld in self.melds:
             for card in meld.cards:
@@ -271,10 +290,9 @@ class Table():
                 max_score = player.score
                 winner = player
         
-        print((winner.name + " WINS").center(90, ' '))
-        print("")
-        for player in self.players:
-            print(player.name + ": " + str(player.score))
+        self.final_score_output(winner)
+        
+        return winner
 
         
 
@@ -355,12 +373,11 @@ class Bot(Player):
             exp_value += value(Card(c[0], c[1]), self.hand, self.table.melds)
         exp_value = exp_value/len(stock)
 
-        print(self.name + "'s hand: " + str(self.hand))
         if value(self.table.discard[-1], self.hand, self.table.melds) >= exp_value:
-            print(self.name + " draws from discard. Expected value of stock was " + str(exp_value) + " and value of discard was " + str(value(self.table.discard[-1], self.hand, self.table.melds)) + ".")
+            print(self.name + " draws from discard.")
             return True
 
-        print(self.name + " draws from stock. Expected value of stock was " + str(exp_value) + " and value of discard was " + str(value(self.table.discard[-1], self.hand, self.table.melds)) + ".")
+        print(self.name + " draws from stock.")
         return False
     
 
@@ -369,7 +386,6 @@ class Bot(Player):
         while True:
             max_meld = []
             for card in self.hand:
-                print("Considering " + card.code)
                 h = copy(self.hand)
                 h.remove(card)
                 cur_meld = meld_with(card, h)
@@ -382,11 +398,10 @@ class Bot(Player):
             else:
                 break
             melds.append(max_meld)
-            print("Found meld " + str(max_meld) + "\n")
             for card in max_meld.cards:
                 self.hand.remove(card)
+                print(card.scorer)
 
-        print(melds)
         return(melds)
 
     def lay_off(self, melds):
@@ -402,7 +417,17 @@ class Bot(Player):
         
     
     def discard(self):
-        return(self.hand.pop())
+        min_value = 2
+        min_card = None
+        for card in self.hand:
+            h = copy(self.hand)
+            h.remove(card)
+            c_value = value(card, self.hand, self.table.melds)
+            if c_value < min_value:
+                min_value = c_value
+                min_card = card 
+        self.hand.remove(min_card)
+        return(min_card)
 
 
 def value(card, hand, melds):
@@ -471,19 +496,7 @@ def meld_with(card, hand):
     return meld
 
         
-kh = Card("K", "H")
-kd = Card("K", "D")
-ks = Card("K", "S")
-qs = Card("Q", "S")
-js = Card("J", "S")
-jd = Card("J", "D")
-ts = Card("T", "S")
-eights = Card("8", "S")
 
-iid = Card("2", "D")
-iiid = Card("3", "D")
-ivd = Card("4", "D")
-ad = Card("A", "D")
 
 
 
@@ -579,13 +592,23 @@ class Human(Player):
                 cards = meld.cards + [card]
                 if run(cards) or lot(cards):
                     valid_melds += [meld]
-        
-            print(valid_melds)
-            ui = input("Which meld will you lay off on?\n > ")
-            while ui not in [str(i) for i in range(len(valid_melds))]:
-                ui = input("Which meld will you lay off on?\n > ")
-            valid_melds[int(ui)].cards += [card]
-            self.hand.remove(card)
+
+            if len(valid_melds) == 0:
+                print("There are no melds you can lay that card off on!")
+
+            else:
+                meld_of_choice = 0
+                if len(valid_melds) > 1:
+
+                    print(valid_melds)
+                    ui = input("Which meld will you lay off on?\n > ")
+                    while ui not in [str(i) for i in range(len(valid_melds))]:
+                        ui = input("Invalid input, try again.\n > ")
+                    meld_of_choice = int(ui)
+                
+                
+                valid_melds[meld_of_choice].cards += [card]
+                self.hand.remove(card)
 
             card = None
             self.show_hand()
@@ -606,20 +629,48 @@ class Human(Player):
             ui = input("Couldn't find that card. Try again. \n > ")
 
 
+
+
 player1 = Human("Player 1")
 player2 = Human("Player 2")
-bot = Bot("Wall-E")
-my_table = Table([bot, player1], hand_size=7)
+w = Bot("Wall-E")
+e = Bot("Eva")
 
-my_table.play()
+# my_table = Table([e, w], hand_size=4)
 
 
-# while playing
-#   for player
-#     take player's move
 
-# moves:
-#  draw from discard or stock
-#  play melds, lay off
-#  discard 1 card
-# Represent move as tuple (draw, [melds], discard)
+def winrate(players : list, n : int, hand_size = 0):
+    wins = {}
+    for i in range(len(players)):
+        wins[i] = 0
+
+    for j in range(n):
+        print(j)
+        mytable = Table(players, hand_size = hand_size)
+        wins[players.index(mytable.play())] += 1
+    
+    return wins
+
+print(winrate([e, w], 50))
+
+# mytable = Table([e, w])
+# mytable.play()
+
+
+jd = Card("J", "D")
+kd = Card("K", "D")
+kh = Card("K", "H")
+ts = Card("T", "S")
+js = Card("J", "S")
+qs = Card("Q", "S")
+ks = Card("K", "S")
+AS = Card("A", "S")
+eights = Card("8", "S")
+
+iid = Card("2", "D")
+iiid = Card("3", "D")
+ivd = Card("4", "D")
+ad = Card("A", "D")
+
+

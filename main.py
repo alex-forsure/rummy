@@ -6,7 +6,6 @@ RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A"]
 VALUE = {"A" : 11, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "T": 10, "J": 10, "Q": 10, "K": 10}
 HAND_SIZES = {2:10, 3:7, 4:7, 5:6, 6:6}
 
-
 class Card():
     def __init__(self, rank : str, suit : str):
         if suit not in SUITS:
@@ -136,7 +135,7 @@ def deck():
 
 
 class Table():
-    def __init__(self, players : list, hand_size : int = 0, output : bool = True):
+    def __init__(self, players : list, hand_size : int = 0, output : bool = True, show_hands : bool = False):
         self.players = players
         for player in players:
             player.table = self
@@ -151,6 +150,7 @@ class Table():
         self.melds = []
         self.output = output
         self.seen = []
+        self.show_hands = show_hands
 
     # Shows all information of table, including stock and all players' hands
     def show_all(self):
@@ -170,39 +170,39 @@ class Table():
         if self.output:
             self.show_melds()
             print("")            
-            print(("STOCK   [??]      DISCARD [" + str(self.discard[-1]) + "]").center(90, ' '))
+            print(("STOCK   [??]      DISCARD [" + str(self.discard[-1]) + "]").center(60, ' '))
             print("")
 
 
     def show_melds(self):
         if self.output:
-            print("MELDS".center(90, ' '))
+            print("MELDS".center(60, ' '))
             melds_text = []
             for i, meld in enumerate(self.melds):
                 if i % 3 == 0:
                     melds_text += ['']
                 melds_text[i//3] += " " + str(meld) + " "
             for meld_text in melds_text:
-                print(meld_text.center(90, " "))
+                print(meld_text.center(60, " "))
 
 
     def new_turn_output(self, cur_player):
         if self.output:
-            print((" "  + cur_player.name + "'s turn ").center(90, '-'))
+            print((" "  + cur_player.name + "'s turn ").center(60, '-'))
             print("")
             self.show_table()
             print("")
 
     def game_end_output(self):
         if self.output:
-            print(" GAME END ".center(90, "-"))
+            print(" GAME END ".center(60, "-"))
             print("")
             self.show_melds()
             print("")
 
     def final_score_output(self, winner):
         if self.output:
-            print((winner.name + " WINS").center(90, ' '))
+            print((winner.name + " WINS").center(60, ' '))
             print("")
             for player in self.players:
                 print(player.name + ": " + str(player.score))
@@ -237,7 +237,8 @@ class Table():
             if stalemate_counter >= 10:
                 print("Stalemate fail-safe triggered.")
                 break
-            self.show_all()
+            if self.show_hands:
+                self.show_all()
 
             if self.stock == []:
                 break 
@@ -326,12 +327,12 @@ class Player():
     
 
     def show_hand(self):
-        print((self.name + "'s Hand").center(90, " "))
+        print((self.name + "'s Hand").center(60, " "))
         hand_text = ""
         for card in self.hand:
             hand_text += str(card) + " "
         hand_text = hand_text.removesuffix(" ")
-        print(hand_text.center(90, " "))
+        print(hand_text.center(60, " "))
 
 
     # Should probably put in errors for these functions? This is just a base class so these methods should never be called.
@@ -353,199 +354,17 @@ class Player():
     
     
     def show_hand(self):
-        print((self.name + "'s Hand").center(90, " "))
+        print((self.name + "'s Hand").center(60, " "))
         hand_text = ""
         for card in self.hand:
             hand_text += str(card) + " "
         hand_text = hand_text.removesuffix(" ")
-        print(hand_text.center(90, " "))
+        print(hand_text.center(60, " "))
     
     
     def discard(self):
         print("Discarding")
 
-
-# A base Bot class which draws & discards based on EV, lays off arbitrarily wherever it can,
-# and plays melds with the highest score whenever it can.
-class Bot(Player):
-    def __init__(self, name : str, hand : list = [], output : bool = True):
-        super().__init__(name, hand)
-        self.output = output
-    
-    def draw(self):
-        # We come up with a list of all cards that could be in the stock.
-        # This assumes we are playing with one deck!
-        stock = [c.code for c in deck()]
-        for c in self.table.seen:
-            stock.remove(c.code)
-        for meld in self.table.melds:
-            for c in meld.cards:
-                stock.remove(c.code)
-        for c in self.hand:
-            stock.remove(c.code)
-        
-        # We take EV of stock.
-        exp_value = 0
-        for c in stock:
-            exp_value += self.value(Card(c[0], c[1]), self.hand, self.table.melds)
-        exp_value = exp_value/len(stock)
-
-        if self.value(self.table.discard[-1], self.hand, self.table.melds) >= exp_value:
-            if self.output:
-                print(self.name + " draws from discard.")
-            return True
-        if self.output:
-            print(self.name + " draws from stock.")
-        return False
-    
-
-    def meld(self):
-        melds = []
-        while True:
-
-            # Find the biggest meld by no. of cards
-            max_meld = []
-            for card in self.hand:
-                h = copy(self.hand)
-                h.remove(card)
-                cur_meld = meld_with(card, h)
-                if len(cur_meld) > len(max_meld):
-                    max_meld = cur_meld
-            
-            # Check that meld is valid. 
-            # If not, this means a meld of 1 or 2 cards has been found, and there is no valid meld.
-            if lot(max_meld):
-                max_meld = Lot(max_meld)
-            elif run(max_meld):
-                max_meld = Run(max_meld)
-            else:
-                break
-            
-            # Add meld to list and remove cards from hand
-            melds.append(max_meld)
-            for card in max_meld.cards:
-                self.hand.remove(card)
-
-        return(melds)
-
-
-    def lay_off(self, melds):
-        while True:
-            # Loop through hand and lay off all possible cards until a full pass is completed with no lays.
-            laid = False
-            for meld in melds:
-                for card in self.hand:
-                    if lot(meld.cards + [card]) or run(meld.cards + [card]):
-                        meld.cards += [card]
-                        self.hand.remove(card)
-            if not laid:
-                break
-        
-    
-    def discard(self):
-        # Find card of minimum value and remove it from hand.
-        min_value = 2
-        min_card = None
-        for card in self.hand:
-            h = copy(self.hand)
-            h.remove(card)
-            c_value = self.value(card, self.hand, self.table.melds)
-            if c_value < min_value:
-                min_value = c_value
-                min_card = card 
-        self.hand.remove(min_card)
-        return(min_card)
-    
-    def value(self, card, hand, melds):
-        return 0.5
-
-
-    
-
-class Bot1(Bot):
-    def __init__(self, name : str, hand : list = [], output : bool = True):
-        super().__init__(name, hand, output=output)
-    
-    def value(self, card, hand, melds):
-        # First, if a card can immediately be laid off, its value is 1.
-        for meld in melds:
-            if lot(meld.cards + [card]) or run(meld.cards + [card]):
-                return 1
-
-        # Next, if a card can immediately be melded, its value is 1.
-        if len(meld_with(card, hand)) >= 3:
-            return 1
-        
-        # Finally, if a card pairs with another card, its value is 0.5.
-        if len(meld_with(card, hand)) == 2:
-            return 0.5 
-        
-        return 0
-
-
-class Bot2(Bot):
-    def __init__(self, name : str, hand : list = [], output : bool = True):
-        super().__init__(name, hand, output=output)
-
-    def value(self, card, hand, melds):
-        # Keep a list all_melds of all feasible melds
-        # for c in hand:
-        #   for meld in all_melds:
-        #     if c in meld and card in meld:
-        #       value += score(meld)
-
-        return 1
-
-
-# Builds the biggest run/lot that we can find which contains the specified card, and cards in hand.
-# Returns the biggest run/lot, prioritising runs.
-# Doesn't work properly for runs when card is A atm.
-def meld_with(card, hand): 
-    
-    # We use card codes because they're easier to work with.
-    codes = [c.code for c in hand]
-    lot_codes = [card.code]
-
-    # Built the biggest lot we can.
-    for suit in SUITS:
-        if card.rank + suit in codes:
-            lot_codes += [card.rank + suit]
-
-    # Set up for finding a run.
-    run_codes = [card.code]
-    suit = card.suit
-    index = RANKS.index(card.rank)
-    c = index
-    # Tick down from the specified card, adding in whatever is found.
-    while c >= 0: # -1 possibility allows for A23 runs
-        if RANKS[c-1] + suit in codes:
-            run_codes += [RANKS[c-1] + suit]
-            c -= 1
-        else:
-            break
-    
-    # Reset counter and tick up from the specified card, adding in whatever is found.
-    c = index
-    while c < 12:
-        if RANKS[c+1] + suit in codes:
-            run_codes += [RANKS[c+1] + suit]
-            c += 1
-        else:
-            break
-    
-    # Pick the largest meld, prioritising runs.
-    meld_codes = run_codes
-    if len(run_codes) < len(lot_codes):
-        meld_codes = lot_codes
-    
-    # Convert meld codes into card objects and return.
-    meld = [card]
-    for c in hand:
-        if c.code in meld_codes:
-            meld += [c]
-    return meld
-
-        
 
 class Human(Player):
     def __init__(self, name : str, hand : list = []):
@@ -603,14 +422,12 @@ class Human(Player):
                 print("Lot added.")
                 for card in cards:
                     self.hand.remove(card)
-                self.show_hand()
                 
             elif run(cards):
                 melds.append(Run(cards))
                 print("Run added.")
                 for card in cards:
                     self.hand.remove(card)
-                self.show_hand()
             else:
                 print("Set did not form run or lot so was ignored.")
         
@@ -675,32 +492,204 @@ class Human(Player):
             ui = input("Couldn't find that card. Try again. \n > ")
 
 
+# A base Bot class which draws & discards based on EV, lays off arbitrarily wherever it can,
+# and plays melds with the highest score whenever it can.
+class Bot(Player):
+    def __init__(self, name : str, hand : list = [], output : bool = True, v_meld = 1, v_strong = 0.5, v_lay = 0.75):
+        super().__init__(name, hand)
+        self.output = output
+        self.meld_value = v_meld
+        self.strong_value = v_strong
+        self.lay_value = v_lay
+    
+    def draw(self):
+        # We come up with a list of all cards that could be in the stock.
+        stock = [c.code for c in deck()]
+        for c in self.table.seen:
+            if c.code in stock: stock.remove(c.code)
+        for meld in self.table.melds:
+            for c in meld.cards:
+                if c.code in stock: stock.remove(c.code)
+        for c in self.hand:
+            if c.code in stock: stock.remove(c.code)
+        
+        # We take EV of stock.
+        exp_value = 0
+        for c in stock:
+            exp_value += self.value(Card(c[0], c[1]), self.hand)
+        exp_value = exp_value/len(stock)
+
+        # If value of discard is more than EV of stock, draw from discard.
+        if self.value(self.table.discard[-1], self.hand) >= exp_value:
+            if self.output:
+                print(self.name + " draws from discard.")
+            return True
+        
+        # Else draw from stock.
+        if self.output:
+            print(self.name + " draws from stock.")
+        return False
+    
+
+    def meld(self):
+        melds = []
+        while True:
+
+            # Find the biggest meld by no. of cards
+            max_meld = []
+            for card in self.hand:
+                h = copy(self.hand)
+                h.remove(card)
+                cur_meld = meld_with(card, h)
+                if len(cur_meld) > len(max_meld):
+                    max_meld = cur_meld
+            
+            # Check that meld is valid. 
+            # If not, this means a meld of 1 or 2 cards has been found, and there is no valid meld.
+            if lot(max_meld):
+                max_meld = Lot(max_meld)
+            elif run(max_meld):
+                max_meld = Run(max_meld)
+            else:
+                break
+            
+            # Add meld to list and remove cards from hand
+            melds.append(max_meld)
+            for card in max_meld.cards:
+                self.hand.remove(card)
+
+        return(melds)
 
 
-player1 = Human("Player 1")
-player2 = Human("Player 2")
-w = Bot1("Wall-E", output = False)
-e = Bot1("Eva", output = False)
+    def lay_off(self, melds):
+        while True:
+            # Loop through hand and lay off all possible cards until a full pass is completed with no lays.
+            laid = False
+            for meld in melds:
+                for card in self.hand:
+                    if lot(meld.cards + [card]) or run(meld.cards + [card]):
+                        meld.cards += [card]
+                        self.hand.remove(card)
+            if not laid:
+                break
+        
+    
+    def discard(self):
+        # Evaluate cards by considering their value if they weren't in hand.
+        min_value = 2
+        min_card = None
+        for card in self.hand:
+            # Make a copy of hand without the card.
+            h = copy(self.hand)
+            h.remove(card)
+            # Check value and update min_value, min_card if appropriate.
+            c_value = self.value(card, self.hand)
+            if c_value < min_value:
+                min_value = c_value
+                min_card = card 
+        # Remove and return the card of minimum value.
+        self.hand.remove(min_card)
+        return(min_card)
+    
+    
+    def value(self, card, hand):
+        # First, if a card can immediately be laid off, its value is 1.
+        for meld in self.table.melds:
+            if lot(meld.cards + [card]) or run(meld.cards + [card]):
+                return self.lay_value
 
-# my_table = Table([e, w], hand_size=4)
+        # Next, if a card can immediately be melded, its value is 1.
+        if len(meld_with(card, hand)) >= 3:
+            return self.meld_value
+        
+        # Finally, if a card pairs with another card, its value is 0.5.
+        if len(meld_with(card, hand)) == 2:
+            return self.strong_value
+        
+        return 0
 
 
 
-def winrate(players : list, n : int, hand_size = 0):
+
+
+# Builds the biggest run/lot that we can find which contains the specified card, and cards in hand.
+# Returns the biggest run/lot, prioritising runs.
+# Doesn't work properly for runs when card is A atm.
+def meld_with(card, hand):
+    
+    # We use card codes because they're easier to work with.
+    codes = [c.code for c in hand]
+    lot_codes = [card.code]
+
+    # Built the biggest lot we can.
+    for suit in SUITS:
+        if card.rank + suit in codes:
+            lot_codes += [card.rank + suit]
+
+    # Set up for finding a run.
+    run_codes = [card.code]
+    suit = card.suit
+    index = RANKS.index(card.rank)
+    c = index
+    # Tick down from the specified card, adding in whatever is found.
+    while c >= 0: # -1 possibility allows for A23 runs
+        if RANKS[c-1] + suit in codes:
+            run_codes += [RANKS[c-1] + suit]
+            c -= 1
+        else:
+            break
+    
+    # Reset counter and tick up from the specified card, adding in whatever is found.
+    c = index
+    while c < 12:
+        if RANKS[c+1] + suit in codes:
+            run_codes += [RANKS[c+1] + suit]
+            c += 1
+        else:
+            break
+    
+    # Pick the largest meld, prioritising runs.
+    meld_codes = run_codes
+    if len(run_codes) < len(lot_codes):
+        meld_codes = lot_codes
+    
+    # Convert meld codes into card objects and return.
+    meld = [card]
+    for c in hand:
+        if c.code in meld_codes:
+            meld += [c]
+    return meld
+
+
+def winrate(players : list, rounds : int, hand_size = 0):
     wins = {}
+    player_index = copy(players)
     for i in range(len(players)):
         wins[i] = 0
 
-    for j in range(n):
-        mytable = Table(players, hand_size = hand_size, output = False)
-        wins[players.index(mytable.play())] += 1
+    for r in range(rounds):
+        for p in players:
+            mytable = Table(players, hand_size = hand_size, output = False)
+            wins[player_index.index(mytable.play())] += 1
+            players.insert(0, players.pop())
     
     return wins
 
-print(winrate([e, w], 500))
 
-# mytable = Table([e, w])
-# mytable.play()
+
+b0 = Bot("Bot 0", output = False, v_strong = 0.15)
+b1 = Bot("Bot 1", output = False)
+b2 = Bot("Bot 2", output = False, v_strong = 0.15)
+b3 = Bot("Bot 3", output = False)
+
+player1 = Human("Alex")
+walle = Bot("Wall-E")
+mytable = Table([player1, walle])
+
+mytable.play()
+
+# print(winrate([b0, b1, b2, b3], 100))
+
 
 
 jd = Card("J", "D")
@@ -719,3 +708,47 @@ ivd = Card("4", "D")
 ad = Card("A", "D")
 
 
+# class Bot2(Bot):
+#     def __init__(self, name : str, hand : list = [], output : bool = True, meld_value = 1, strong_value = 0.5, weak_value = 0.25, lay_value = 0.5):
+#         super().__init__(name, hand, meld_value = meld_value, strong_value = strong_value, weak_value = weak_value, lay_value = lay_value)
+#         self.output = output
+#         self.feasible_melds = all_melds()
+    
+
+#     def update_melds(self):
+#         buried_cards = [c.code for c in self.table.discard]
+#         if buried_cards != []:
+#             buried_cards.pop()
+#         for m in self.feasible_melds:
+#             for c in buried_cards:
+#                 if c in m and m in self.feasible_melds:
+#                     self.feasible_melds.remove(m)
+    
+
+#     def value(self, card, hand, melds):
+#         self.update_melds()
+#         card_melds = [m for m in self.feasible_melds if card.code in m]
+
+#         # Check if card can be laid off
+#         for meld in melds:
+#             if lot(meld.cards + [card]) or run(meld.cards + [card]):
+#                 return self.lay_value
+        
+#         # Check if card in hand is immediately meldable
+#         connections = 0
+#         for m in card_melds:
+#             no_held = 0
+#             for c in hand:
+#                 if c.code in m:
+#                     no_held += 1
+#             if no_held == 2:
+#                 return self.meld_value
+#             if no_held == 1:
+#                 connections += 1
+        
+#         if connections == 0:
+#             return 0
+#         if connections == 1:
+#             return self.weak_value
+#         else:
+#             return self.strong_value

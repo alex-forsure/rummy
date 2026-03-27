@@ -21,11 +21,18 @@ class Card():
         return self.code
 
 
+# Returns a full unshuffled deck
+def deck():
+    out = []
+    for suit in SUITS:
+        for rank in RANKS:
+            out.append(Card(rank, suit))
+    return out
 
+# Returns whether cds forms a valid run
 def run(cds:list):
     if len(cds) < 3:
-        return None
-    
+        return False
     cards = copy(cds)
     
     # Find card of minimal rank.
@@ -60,19 +67,19 @@ def run(cds:list):
 
     # If all cards were used in forming the run, the given set was a valid run. Otherwise it was not.
     if cards == []:
-        return run
+        return True
     else:
-        return None
+        return False
 
-
+# Returns whether cds forms a valid lot
 def lot(cds: list):
     if len(cds) < 3:
-        return None
+        return False
     rank = cds[0].rank
     for card in cds:
         if card.rank != rank:
-            return None
-    return cds
+            return False
+    return True
 
 
 class Meld():
@@ -91,56 +98,29 @@ class Meld():
 
 class Lot(Meld):
     def __init__(self, cards):
-        if lot(cards) == None:
+        if not lot(cards):
             raise ValueError("Attempted to create a Lot from an invalid set of cards.")
         self.cards = cards
         self.is_run = False
         self.is_lot = True
-    
-    def set_next(self, pool:list):
-        out = []
-        for card in pool:
-            new = self.cards + [card]
-            if lot(new) != None:
-                out += [card]
-        self.next = out
 
 
 class Run(Meld):
     def __init__(self, cards):
-        if run(cards) == None:
+        if not run(cards):
             raise ValueError("Attempted to create a Run from an invalid set of cards.")
-        self.cards = run(cards)
+        self.cards = cards
         self.is_run = True
         self.is_lot = False
-        
-    def set_next(self, pool:list):
-        out = []
-        for card in pool:
-            new = self.cards + [card]
-            if run(new) != None:
-                out += [card]
-        self.next = out
     
-
-
-
-# Returns a full unshuffled deck
-def deck():
-    out = []
-    for suit in SUITS:
-        for rank in RANKS:
-            out.append(Card(rank, suit))
-    return out
-
 
 class Table():
     def __init__(self, players : list, hand_size : int = 0, output : bool = True, show_hands : bool = False):
         self.players = players
         for player in players:
-            player.table = self
+            player.table = self # Bots need to see melds, discard, seen
         self.hand_size = hand_size
-        if hand_size == 0:
+        if hand_size == 0: # Default
             try:
                 self.hand_size = HAND_SIZES[len(players)]
             except: 
@@ -148,9 +128,9 @@ class Table():
         self.stock = []
         self.discard = []
         self.melds = []
-        self.output = output
-        self.seen = []
-        self.show_hands = show_hands
+        self.output = output # Can turn output off for mass testing
+        self.seen = [] # Used by bots to estimate contents of stock
+        self.show_hands = show_hands # Can show all players' hands for testing
 
     # Shows all information of table, including stock and all players' hands
     def show_all(self):
@@ -165,7 +145,7 @@ class Table():
                 print("\n" + p.name + "'s hand:")
                 print(p.hand)
 
-
+    # Shows information that should be visible in a normal game
     def show_table(self):
         if self.output:
             self.show_melds()
@@ -185,7 +165,7 @@ class Table():
             for meld_text in melds_text:
                 print(meld_text.center(60, " "))
 
-
+    # Shows header and table info for new turn
     def new_turn_output(self, cur_player):
         if self.output:
             print((" "  + cur_player.name + "'s turn ").center(60, '-'))
@@ -193,6 +173,7 @@ class Table():
             self.show_table()
             print("")
 
+    # Shows melds for game end
     def game_end_output(self):
         if self.output:
             print(" GAME END ".center(60, "-"))
@@ -200,6 +181,7 @@ class Table():
             self.show_melds()
             print("")
 
+    # Shows scores and winner
     def final_score_output(self, winner):
         if self.output:
             print((winner.name + " WINS").center(60, ' '))
@@ -207,6 +189,7 @@ class Table():
             for player in self.players:
                 print(player.name + ": " + str(player.score))
 
+    # Game loop
     def play(self):
 
         # Set up stock, players' hands, discard pile
@@ -235,7 +218,7 @@ class Table():
         while True:
             stalemate_counter += 1
             if stalemate_counter >= 10:
-                print("Stalemate fail-safe triggered.")
+                if self.output: print("Stalemate fail-safe triggered.")
                 break
             if self.show_hands:
                 self.show_all()
@@ -311,10 +294,6 @@ class Table():
         
         return winner
 
-        
-
-
-
       
 # Base class for CPU + human players
 class Player():
@@ -322,7 +301,7 @@ class Player():
         self.out = False
         self.hand = hand
         self.name = name
-        self.table = None
+        self.table = None 
         self.score = 0
     
 
@@ -337,7 +316,7 @@ class Player():
 
     # Should probably put in errors for these functions? This is just a base class so these methods should never be called.
     def draw(self):
-        print("Drawing")
+        pass
         
     def sort_hand(self):
         new_hand = []
@@ -363,7 +342,7 @@ class Player():
     
     
     def discard(self):
-        print("Discarding")
+        pass
 
 
 class Human(Player):
@@ -438,18 +417,22 @@ class Human(Player):
         ui = ' '
         card = None
         self.show_hand()
-        ui = input("Enter a card to lay off. \n > ")
+        ui = input("Enter a card to lay off, or '' to pass. \n > ")
 
         while ui != '':
+            valid_input = False
             while True:
                 for c in self.hand:
                     if c.code == ui.upper():
                         card = c
                 if card == None:
-                    ui = input("Card not found in hand.\n > ")
-                else:
+                    ui = input("Card not found in hand, try again.\n > ")
                     break
-        
+                else:
+                    valid_input = True
+                    break
+            if not valid_input: 
+                continue
             valid_melds = []
             for meld in melds:
                 cards = meld.cards + [card]
@@ -609,9 +592,6 @@ class Bot(Player):
         return 0
 
 
-
-
-
 # Builds the biggest run/lot that we can find which contains the specified card, and cards in hand.
 # Returns the biggest run/lot, prioritising runs.
 # Doesn't work properly for runs when card is A atm.
@@ -661,94 +641,48 @@ def meld_with(card, hand):
     return meld
 
 
-def winrate(players : list, rounds : int, hand_size = 0):
+def winrate(players : list, rounds : int, hand_size = 0, rotate = True):
     wins = {}
     player_index = copy(players)
     for i in range(len(players)):
         wins[i] = 0
 
-    for r in range(rounds):
+    for r in range(rounds//len(players)):
         for p in players:
             mytable = Table(players, hand_size = hand_size, output = False)
             wins[player_index.index(mytable.play())] += 1
-            players.insert(0, players.pop())
+            if rotate:
+                players.insert(0, players.pop())
     
     return wins
 
 
+####### Playing a game
 
-b0 = Bot("Bot 0", output = False, v_strong = 0.15)
-b1 = Bot("Bot 1", output = False)
-b2 = Bot("Bot 2", output = False, v_strong = 0.15)
-b3 = Bot("Bot 3", output = False)
+# Human player takes user input for moves.
+player1 = Human("Alex") 
+# Bot uses value function for moves. 
+walle = Bot("Wall-E") 
 
-player1 = Human("Alex")
-walle = Bot("Wall-E")
-mytable = Table([player1, walle])
+## If you want to add more bots, create a new bot:
+# my_bot = Bot("Bot name").
+# Then add it to the list in the table:
+# mytable = Table([player1, walle, my_bot]).
 
+
+# Table object handles game. Turn on show_hands for cheats. Hand size 7 makes the game shorter (default for 2 players is 10).
+mytable = Table([player1, walle], show_hands = False, hand_size = 7) 
+
+# Begin the game.
 mytable.play()
 
-# print(winrate([b0, b1, b2, b3], 100))
 
-
-
-jd = Card("J", "D")
-kd = Card("K", "D")
-kh = Card("K", "H")
-ts = Card("T", "S")
-js = Card("J", "S")
-qs = Card("Q", "S")
-ks = Card("K", "S")
-AS = Card("A", "S")
-eights = Card("8", "S")
-
-iid = Card("2", "D")
-iiid = Card("3", "D")
-ivd = Card("4", "D")
-ad = Card("A", "D")
-
-
-# class Bot2(Bot):
-#     def __init__(self, name : str, hand : list = [], output : bool = True, meld_value = 1, strong_value = 0.5, weak_value = 0.25, lay_value = 0.5):
-#         super().__init__(name, hand, meld_value = meld_value, strong_value = strong_value, weak_value = weak_value, lay_value = lay_value)
-#         self.output = output
-#         self.feasible_melds = all_melds()
-    
-
-#     def update_melds(self):
-#         buried_cards = [c.code for c in self.table.discard]
-#         if buried_cards != []:
-#             buried_cards.pop()
-#         for m in self.feasible_melds:
-#             for c in buried_cards:
-#                 if c in m and m in self.feasible_melds:
-#                     self.feasible_melds.remove(m)
-    
-
-#     def value(self, card, hand, melds):
-#         self.update_melds()
-#         card_melds = [m for m in self.feasible_melds if card.code in m]
-
-#         # Check if card can be laid off
-#         for meld in melds:
-#             if lot(meld.cards + [card]) or run(meld.cards + [card]):
-#                 return self.lay_value
-        
-#         # Check if card in hand is immediately meldable
-#         connections = 0
-#         for m in card_melds:
-#             no_held = 0
-#             for c in hand:
-#                 if c.code in m:
-#                     no_held += 1
-#             if no_held == 2:
-#                 return self.meld_value
-#             if no_held == 1:
-#                 connections += 1
-        
-#         if connections == 0:
-#             return 0
-#         if connections == 1:
-#             return self.weak_value
-#         else:
-#             return self.strong_value
+## Use following code for mass testing.
+# b0 = Bot("Bot 0", output = False, v_strong = 0.25)
+# b1 = Bot("Bot 1", output = False, v_strong = 0.25)
+# b2 = Bot("Bot 2", output = False, v_strong = 0.25)
+# b3 = Bot("Bot 3", output = False, v_strong = 0.25)
+# b4 = Bot("Bot 4", output = False, v_strong = 0.25)
+# print("Running")
+# for i in range(6):
+#     print(winrate([b0, b1, b2, b3, b4], 1000, rotate = False))
